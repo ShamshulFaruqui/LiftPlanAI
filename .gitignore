@@ -1,0 +1,28 @@
+# Virtual environment
+venv/
+__pycache__/
+*.pyc
+
+# Data (keep drawings out of git — confidentiality + repo size)
+data/raw/*
+data/synthetic/*
+data/processed/*
+data/annotations/*
+!data/raw/.gitkeep
+!data/synthetic/.gitkeep
+!data/processed/.gitkeep
+!data/annotations/.gitkeep
+
+# Model checkpoints (large files)
+*.pt
+*.pth
+*.onnx
+*.h5
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

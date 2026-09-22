@@ -1,0 +1,40 @@
+[theme]
+base = "dark"
+primaryColor = "#C1315C"
+backgroundColor = "#0B0B0D"
+secondaryBackgroundColor = "#17171B"
+textColor = "#F2F2F0"
+
+# st.error / a real compliance violation — the one alert kind that should
+# still stand out in red.
+redColor = "#FF6B5B"
+redBackgroundColor = "#3A1E1B"
+redTextColor = "#FFD9D3"
+
+# Every other alert kind (st.info / st.warning / st.success) is flattened
+# to the same neutral dark surface, so nothing shows up green or yellow —
+# whichever of these color families Streamlit actually uses for warning vs.
+# info, they all end up looking the same: a plain frosted card.
+orangeColor = "#C9C9D1"
+orangeBackgroundColor = "#1F1F24"
+orangeTextColor = "#E5E5EA"
+
+yellowColor = "#C9C9D1"
+yellowBackgroundColor = "#1F1F24"
+yellowTextColor = "#E5E5EA"
+
+blueColor = "#C9C9D1"
+blueBackgroundColor = "#1F1F24"
+blueTextColor = "#E5E5EA"
+
+greenColor = "#C9C9D1"
+greenBackgroundColor = "#1F1F24"
+greenTextColor = "#E5E5EA"
+
+violetColor = "#C9C9D1"
+violetBackgroundColor = "#1F1F24"
+violetTextColor = "#E5E5EA"
+
+grayColor = "#C9C9D1"
+grayBackgroundColor = "#1F1F24"
+grayTextColor = "#E5E5EA"
