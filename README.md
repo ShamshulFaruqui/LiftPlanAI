@@ -1,59 +1,230 @@
 # LiftPlan AI
 
-Automated elevator specification from architectural drawings - MSc Individual Project (CST4275),
-Middlesex University Dubai. Shamshul Huda Faruqui (M00908731). Supervisor: Dr. Siddhaling Urolagin.
+**Automated elevator specification from architectural drawings.**
 
-No real project drawings, specifications or client data are included in, or used by, this code.
-All data is synthetic and regenerated from fixed seeds.
+LiftPlan AI reads a lift-detail drawing (PDF), extracts the parameters an elevator engineer needs
+(lift labels and types, car/door/shaft dimensions, levels, travel, pit depth, overhead, rated load and speed),
+runs a CIBSE Guide D up-peak traffic study, recommends a lift configuration, and flags compliance issues and
+contradictions with the client's specification. Results are shown in a Streamlit dashboard.
 
-## Setup
+MSc Data Science and Artificial Intelligence - Individual Project (CST4275), Middlesex University Dubai.
+Author: Shamshul Huda Faruqui (M00908731). Supervisor: Dr. Siddhaling Urolagin.
 
-    python -m venv venv
-    venv\Scripts\activate            (Windows)   |   source venv/bin/activate   (macOS/Linux)
-    pip install -r requirements.txt
-    # Tesseract OCR must be installed and on PATH (used for sheets without a text layer)
+---
 
-## Run the dashboard
+## Contents
 
-    streamlit run src/dashboard/app.py
+1. [How it works](#how-it-works)
+2. [Results](#results)
+3. [Data and confidentiality](#data-and-confidentiality)
+4. [Installation](#installation)
+5. [Running the dashboard](#running-the-dashboard)
+6. [Reproducing the results](#reproducing-the-results)
+7. [Project structure](#project-structure)
+8. [Known limitations](#known-limitations)
 
-## Regenerate the dataset (v2, ~160 MB per split, resumable)
+---
 
-    python -m src.synthetic.generate_realistic --split dev  --count 500 --distractors 100
-    python -m src.synthetic.generate_realistic --split test --count 500 --distractors 100
+## How it works
 
-Output goes to data/synthetic_v2/<split>/ (drawings, YOLO labels, ground_truth.json).
-Each sheet has its own seed, so an interrupted run can simply be re-run to continue.
+```
+PDF drawing
+   │
+   ├─ 1. Triage              is this an elevator drawing? (keyword lexicon, fuzzy matching)
+   ├─ 2. Text acquisition    PDF text layer, or Tesseract LSTM OCR for scanned sheets (two passes: 0° and 90°)
+   ├─ 3. Layout extraction   lift labels, then dimensions by position: car width above the label, car depth
+   │                         rotated to its left, shaft/door around it; levels, pit, overhead, lift schedule
+   ├─ 4. Classification      lift type from the label (passenger / service / goods / firefighter)
+   ├─ 5. Traffic study       CIBSE Guide D round trip time, interval and handling capacity (passenger groups)
+   ├─ 6. Recommendation      cheapest configuration meeting published performance targets
+   └─ 7. Checks              firefighter-lift compliance, drawing-vs-specification contradictions
+```
 
-## Evaluate (precision / recall / F1)
+A **YOLOv8n** object detector (shafts, cars, level markers) is trained separately on the generator's bounding
+boxes and evaluated alongside the extractor.
 
-    python -m src.evaluation.evaluate --split test --out results/test_full
-    python -m src.evaluation.evaluate --split dev  --out results/dev --vector-only   # fast, no OCR
+Design principle: **abstain rather than guess.** When a value can't be read reliably it is left blank and
+flagged for the engineer. Labels that look like lifts but aren't in the vocabulary (e.g. `PAX-1`) are reported
+as "unrecognised" instead of being counted or typed.
 
-The first full run OCRs the ~96 scanned test sheets (~20 s each); results are cached.
+## Results
 
-## Train and evaluate the YOLOv8 detector (needs ultralytics + torch)
+Held-out test split: 500 lift-detail sheets (1,822 lifts) + 100 distractor sheets. The test split includes
+96 scanned sheets (no text layer) and 141 sheets using drafting conventions never seen during development.
 
-    pip install ultralytics
-    python -m src.detector.yolo_detector prepare
-    python -m src.detector.yolo_detector train --epochs 40            # CPU: try --imgsz 960 --epochs 25
-    python -m src.detector.yolo_detector evaluate --weights runs/detect/liftplan/weights/best.pt
+| Task | Precision | Recall | F1 |
+|---|---|---|---|
+| T1 Drawing triage | 1.000 | 0.892 | **0.943** |
+| T2 Lift detection | 0.998 | 0.815 | **0.897** |
+| T3 Lift type (macro) | 1.000 | 1.000 | **1.000** |
+| T4/T5 Extracted fields (micro, 13 fields) | 0.991 | 0.805 | **0.888** |
+| T6 Firefighter-lift compliance flag | 0.797 | 1.000 | **0.887** |
 
-Metrics are written to results/yolo/yolo_test_metrics.json (Table 6.7 of the dissertation).
+Lift-detection F1 by subset: seen conventions 0.958, unseen 0.694, vector 0.941, scanned 0.673.
+The drop on unseen/scanned sheets is recall, not precision: the system misses lifts rather than inventing them.
+
+**YOLOv8n detector** (test split): precision and recall ≥ 0.9999 for all three classes, mAP@0.5:0.95 of
+0.954-0.964. The training and test sheets come from the same generator, so this shows the detector learned
+the generator's drawing style; it is not evidence of performance on other offices' drawings.
+
+**Traffic engine**: validated against a published worked example (Khaleel, Al-Sharif and Salahat, 2013)
+and Monte Carlo simulation. This found and fixed an error that overestimated round trip time by 15.8% on
+average and over-specified lifts in 156 of 224 test buildings (`results/traffic_fix_impact.json`).
+
+Full results and discussion: Chapter 6 of the dissertation.
+
+## Data and confidentiality
+
+All evaluation data is **synthetic**, generated by `src/synthetic/generate_realistic.py` from fixed seeds
+(dev = 1, test = 2), so the datasets are not stored in this repository: they are regenerated exactly with the
+commands below. All names in the generated title blocks are fictitious.
+
+No real project drawings, specifications or client data are included in this repository. The older
+`real_*` modules were written during early internal testing (see Section 4.2 of the dissertation); no data
+from that testing is included or reported. Never commit drawings: `data/` is excluded by `.gitignore`.
+
+## Installation
+
+Developed with Python 3.11; also run on Python 3.13 (Windows).
+
+**1. System dependencies**
+
+- **Tesseract OCR** - reads scanned sheets. Windows: install from
+  [UB Mannheim](https://github.com/UB-Mannheim/tesseract/wiki) and add it to PATH. macOS: `brew install tesseract`.
+  Ubuntu: `sudo apt install tesseract-ocr`.
+- **Poppler** - used by the first-generation visual extractor. Windows: download a release from
+  [poppler-windows](https://github.com/oschwartz10612/poppler-windows) and add its `bin` folder to PATH.
+  macOS: `brew install poppler`. Ubuntu: `sudo apt install poppler-utils`.
+
+Check with `tesseract --version` and `pdftoppm -v`.
+
+**2. Python environment**
+
+```bash
+python -m venv venv
+venv\Scripts\activate            # Windows
+source venv/bin/activate         # macOS / Linux
+pip install -r requirements.txt
+```
+
+**3. (Optional) YOLOv8** - only needed to train or evaluate the detector:
+
+```bash
+pip install ultralytics
+```
+
+For an NVIDIA GPU, install the CUDA build of PyTorch first (see [pytorch.org](https://pytorch.org/get-started/locally/));
+otherwise training runs on the CPU, which works but is slow.
+
+## Running the dashboard
+
+```bash
+streamlit run src/dashboard/app.py
+```
+
+Upload a drawing PDF (and optionally a specification PDF) and click **Run analysis**.
+
+- **Project Summary** - building parameters, compliance checklist, contradiction check, extraction notes.
+- **Elevator Details** - per-lift table (car, door, shaft, load, speed), unrecognised labels, levels, and a
+  traffic study and recommendation for each passenger group.
+
+To try it without generating the full dataset, create a single test sheet:
+
+```bash
+python -m src.synthetic.generate_realistic --split test --count 500 --start 471 --stop 471
+```
+
+The sheet is written to `data/synthetic_v2/test/drawings/`.
+
+## Reproducing the results
+
+**1. Generate the dataset** (~160 MB per split; resumable - if interrupted, run the same command again)
+
+```bash
+python -m src.synthetic.generate_realistic --split dev  --count 500 --distractors 100
+python -m src.synthetic.generate_realistic --split test --count 500 --distractors 100
+```
+
+Output: `data/synthetic_v2/<split>/` with `drawings/`, per-sheet ground truth, `ground_truth.json`
+and YOLO labels. Other options: `--scan-rate` (default 0.2), `--unseen-rate` (default 0.3), `--seed`.
+
+**2. Evaluate the extractor**
+
+```bash
+python -m src.evaluation.evaluate --split test --out results/test_full
+python -m src.evaluation.evaluate --split test --out results/test_vector --vector-only   # skips OCR, fast
+```
+
+Writes `metrics_test.json` (precision/recall/F1 per task and subset) and `predictions_test.json`.
+The first full run OCRs the 96 scanned sheets (~20 s each); OCR results are cached, so later runs are fast.
+Use `--limit N` for a quick check on the first N sheets.
+
+**3. Train and evaluate the YOLOv8 detector**
+
+```bash
+python -m src.detector.yolo_detector prepare
+python -m src.detector.yolo_detector train --epochs 40
+python -m src.detector.yolo_detector evaluate --weights runs/detect/liftplan/weights/best.pt
+```
+
+`prepare` renders the sheets into `data/yolo/` (450 train / 50 val from dev, 500 test).
+Metrics go to `results/yolo/yolo_test_metrics.json`. On CPU, `--imgsz 960 --epochs 25` is faster.
 If training stops with an out-of-memory error in a dataloader worker, lower `--workers`
 (default 2; `--workers 0` uses no extra processes) on both `train` and `evaluate`.
 
-## Tests
+**4. Run the tests**
 
-    python -m pytest -q          # 321 tests
+```bash
+python -m pytest -q          # 321 tests
+```
 
-## Layout
+Key suites: `test_traffic_worked_example.py` (traffic engine vs. published example),
+`test_layout_pipeline.py` (layout extractor), `test_dashboard_layout_mode.py` (end-to-end on a generated sheet).
 
-    src/synthetic/generate_realistic.py   v2 dataset generator (lift-detail sheets + ground truth + YOLO labels)
-    src/parser/layout_extractor.py        layout-aware extractor (labels, dimensions, levels, schedule)
-    src/evaluation/evaluate.py            evaluation harness
-    src/detector/yolo_detector.py         YOLOv8 prepare / train / evaluate
-    src/traffic_engine/traffic_study.py   CIBSE Guide D traffic study (validated, see tests/test_traffic_worked_example.py)
-    src/spec_engine/recommender.py        specification recommender
-    src/dashboard/                        Streamlit dashboard and pipeline orchestration
-    results/                              test-split metrics, traffic-fix impact, pipeline comparison
+## Project structure
+
+```
+LiftPlan_AI/
+├── src/
+│   ├── synthetic/
+│   │   ├── generate_realistic.py     v2 dataset: A1 lift-detail sheets, ground truth, YOLO labels
+│   │   └── generate_dataset.py       v1 dataset (first-generation, 30 simplified drawings)
+│   ├── triage/file_triage.py         stage 1: is this an elevator drawing?
+│   ├── parser/
+│   │   ├── layout_extractor.py       stage 3: layout-aware extraction (used for all Chapter 6 results)
+│   │   ├── text_extractor.py         first-generation text-field parser
+│   │   ├── visual_extractor.py       first-generation OpenCV geometry channel
+│   │   ├── merged_extractor.py       combines the two first-generation channels
+│   │   ├── spec_reader.py            reads the client specification PDF
+│   │   └── real_*.py, level_extractor.py, spatial_dimension_extractor.py   older fallback path
+│   ├── classifier/                   stage 4: rule-based lift-type classification
+│   ├── traffic_engine/               stage 5: CIBSE Guide D traffic study, pit/headroom minimums
+│   ├── spec_engine/recommender.py    stage 6: configuration search
+│   ├── contradiction/                stage 7: drawing vs. specification checks
+│   ├── detector/yolo_detector.py     YOLOv8 prepare / train / evaluate
+│   ├── evaluation/evaluate.py        evaluation harness (T1-T6, per subset)
+│   └── dashboard/                    Streamlit app (app.py) and pipeline orchestration (pipeline.py)
+├── tests/                            321 pytest tests
+├── results/
+│   ├── test_full/                    test-split metrics and predictions (all sheets)
+│   ├── test_vector/                  same, vector sheets only
+│   ├── baseline_comparison.json      first-generation parser vs. layout extractor (60 sheets)
+│   └── traffic_fix_impact.json       effect of the traffic engine correction on 224 buildings
+├── docs/keyword_lexicon.md           lift and level vocabulary (fixed before the test split existed)
+├── data/                             generated locally, not in git
+├── requirements.txt
+└── README.md
+```
+
+## Known limitations
+
+- **Synthetic evaluation only.** The generator and extractor were written by the same author; the unseen-convention
+  and scanned subsets reduce but don't remove that bias. No measured result on real drawings is reported.
+- **Vocabulary-bound.** Lift labels in an unseen convention are reported as unrecognised, not read
+  (lift-detection recall 0.53 on unseen sheets).
+- **OCR on scanned sheets** misses about half the lifts (recall 0.51); the YOLO detector locates them, but reading
+  their values still depends on OCR.
+- **Traffic study** is up-peak only and applied to passenger groups; population is estimated from building type.
+- **Recommendation** is a rule-based search, not a model trained on historical projects - a starting point for
+  engineer review, not a final specification.
+- **Pit and headroom proposals** are only made for speeds up to 1.75 m/s.
