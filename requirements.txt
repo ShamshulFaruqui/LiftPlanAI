@@ -1,0 +1,25 @@
+# --- Stage 1: File triage & text extraction (needed now) ---
+PyMuPDF>=1.23.0
+pdfplumber>=0.10.0
+rapidfuzz>=3.5.0
+pytesseract>=0.3.10
+
+# --- Stage 2: Computer vision (needed for Phase 3 — CV model) ---
+opencv-python>=4.8.0
+pdf2image>=1.17.0
+Pillow>=10.0.0
+ultralytics>=8.0.0
+
+# --- Stage 3: ML / specification engine (needed for Phase 3-4) ---
+pandas>=2.1.0
+numpy>=1.26.0
+scikit-learn>=1.3.0
+xgboost>=2.0.0
+shap>=0.43.0
+
+# --- Stage 4: Dashboard (needed for Phase 5) ---
+streamlit>=1.28.0
+plotly>=5.18.0
+
+# --- Testing ---
+pytest>=7.4.0

@@ -1,0 +1,39 @@
+# Virtual environment
+venv/
+__pycache__/
+*.pyc
+
+# Data (keep drawings out of git — confidentiality + repo size)
+data/raw/*
+data/synthetic/*
+data/processed/*
+data/annotations/*
+!data/raw/.gitkeep
+!data/synthetic/.gitkeep
+!data/processed/.gitkeep
+!data/annotations/.gitkeep
+
+# Model checkpoints (large files)
+*.pt
+*.pth
+*.onnx
+*.h5
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+data/synthetic_v2/*
+results/*/predictions_*.json
+
+# Never commit real drawings (company / client confidential)
+data/real_test/
+data/real*/
+
+# Training outputs and other local environments
+runs/
+data/yolo/
+.venv/
