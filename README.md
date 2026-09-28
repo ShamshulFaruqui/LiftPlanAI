@@ -9,6 +9,7 @@ contradictions with the client's specification. Results are shown in a Streamlit
 
 MSc Data Science and Artificial Intelligence - Individual Project (CST4275), Middlesex University Dubai.
 Author: Shamshul Huda Faruqui (M00908731). Supervisor: Dr. Siddhaling Urolagin.
+Repository: https://github.com/ShamshulFaruqui/LiftPlanAI
 
 ---
 
