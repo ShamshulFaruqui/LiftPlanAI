@@ -574,12 +574,12 @@ if run_button and drawing_file is not None:
                 card("No lift groups detected in this drawing.")
             else:
                 tabs = st.tabs([f"{g.group_id} ({g.lift_type_from_label or '?'})" for g in result.groups])
-                for tab, group in zip(tabs, result.groups):
+                for gi, (tab, group) in enumerate(zip(tabs, result.groups)):
                     with tab:
                         col1, col2 = st.columns(2)
 
                         with col1:
-                            with st.container(border=True, key=f"lp_card_group_params_{group.group_id}"):
+                            with st.container(border=True, key=f"lp_card_group_params_{gi}_{group.group_id}"):
                                 st.markdown("**Extracted parameters**")
                                 st.write(f"Type (from label): {group.lift_type_from_label or '—'}")
                                 st.write(f"Type (from group ID): {group.lift_type_from_id or 'unrecognised'}")
@@ -599,7 +599,7 @@ if run_button and drawing_file is not None:
                                 st.write(f"Dedicated shaft (EN81-72): {'Yes' if group.dedicated_shaft else 'No'}")
 
                         with col2:
-                            with st.container(border=True, key=f"lp_card_group_detail_{group.group_id}"):
+                            with st.container(border=True, key=f"lp_card_group_detail_{gi}_{group.group_id}"):
                                 if group.traffic_study:
                                     st.markdown("**Traffic study**")
                                     ts = group.traffic_study
@@ -635,6 +635,14 @@ if run_button and drawing_file is not None:
                                 if group.recommendation:
                                     st.markdown("**Recommended configuration**")
                                     st.write(group.recommendation["message"])
+                                    if group.recommendation["feasible"]:
+                                        st.caption(
+                                            "Smallest configuration meeting the building type's interval "
+                                            "and handling-capacity targets for the estimated population. "
+                                            "Car size has a published minimum for hotels (Siikonen, 2013) "
+                                            "and hospitals (HTM 08-02). A starting point to check the "
+                                            "design against, not a final specification."
+                                        )
                                     if not group.recommendation["feasible"]:
                                         st.caption(
                                             "No configuration in the search space meets the target "
