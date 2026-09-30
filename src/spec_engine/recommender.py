@@ -54,7 +54,10 @@ TARGET_CRITERIA = {
     # for midrange hotels (60s, not the commonly mis-cited 40s). Handling
     # capacity target not directly found in this session's sources —
     # ESTIMATED by interpolating between residential and office criteria.
-    "hotel": {"min_hc_percent": 8, "max_interval_s": 60, "source": "ISO 8100-32:2020 (interval); HC% estimated, not directly sourced"},
+    # Handling capacity per Siikonen (2013): 12% in five minutes for
+    # five-star hotels, 10% acceptable for resorts - the lower figure is
+    # used as the minimum.
+    "hotel": {"min_hc_percent": 10, "max_interval_s": 60, "source": "ISO 8100-32:2020 (interval); Siikonen (2013) (HC%)"},
     # Not directly found in this session's sources — ESTIMATED, pending a
     # direct CIBSE Guide D citation. Treat with more caution than the
     # residential/commercial figures above.
@@ -74,10 +77,33 @@ TARGET_CRITERIA = {
     "villa": {"min_hc_percent": 3, "max_interval_s": 120, "source": "ESTIMATED — not a formal CIBSE design case; single-household use"},
 }
 
-# Search space, grounded in the KONE MonoSpace 500 envelope already used
-# for the synthetic dataset (see src/synthetic/generate_dataset.py).
-SPEED_OPTIONS_MS = [1.00, 1.25, 1.50, 1.75]
-LOAD_OPTIONS_KG = [630, 800, 1000, 1150]
+# Search space: the standard rated loads of ISO 8100-30 and common
+# rated speeds up to 2.5 m/s.
+SPEED_OPTIONS_MS = [1.00, 1.25, 1.50, 1.75, 2.00, 2.50]
+LOAD_OPTIONS_KG = [630, 800, 1000, 1275, 1600, 2000]
+
+# Minimum rated load for passenger lifts by building type. Car size is chosen
+# from the building's use first, then the group is sized by traffic; without
+# this floor the cost ordering below would always pick the smallest car that
+# passes the traffic criteria (e.g. 630 kg in a 10-storey hotel).
+# Siikonen, M.-L. (2013) 'Traffic patterns in hotels and residential
+# buildings', 3rd Symposium on Lift and Escalator Technologies: in four- to
+# five-star hotels passenger lifts are commonly 1,600 kg and 1,275 kg is
+# accepted as a minimum; in low-rise hotels of fewer than 10 floors,
+# 800-1,000 kg can be used for guest lifts.
+# Department of Health (2016) Health Technical Memorandum 08-02: Lifts,
+# sections 4.9-4.11: the general hospital passenger lift is 1,275 kg, a
+# smaller 1,000 kg lift is allowed, and 630/800 kg only in community or small
+# healthcare buildings - so 1,000 kg is used as the hospital minimum.
+# Bed and goods lifts are separate groups and are not sized here.
+# Only hotels and hospitals are constrained - no source was found for the
+# other building types.
+def minimum_rated_load_kg(building_type: str, num_floors: int) -> int:
+    if building_type == "hotel":
+        return 1275 if num_floors >= 10 else 800
+    if building_type == "hospital":
+        return 1000
+    return 0
 MAX_LIFTS_SEARCHED = 8
 
 
@@ -116,10 +142,12 @@ def recommend_configuration(num_floors: int, population: int, floor_height_m: fl
     this single-group search does not attempt).
     """
     criteria = TARGET_CRITERIA.get(building_type, TARGET_CRITERIA["mixed-use"])
+    min_load = minimum_rated_load_kg(building_type, num_floors)
+    loads = [l for l in LOAD_OPTIONS_KG if l >= min_load]
 
     candidates = []
     for num_lifts in range(1, MAX_LIFTS_SEARCHED + 1):
-        for speed, load in itertools.product(SPEED_OPTIONS_MS, LOAD_OPTIONS_KG):
+        for speed, load in itertools.product(SPEED_OPTIONS_MS, loads):
             result = run_traffic_study(
                 num_floors=num_floors, population=population, num_lifts=num_lifts,
                 rated_speed_ms=speed, rated_load_kg=load, floor_height_m=floor_height_m,
@@ -137,7 +165,7 @@ def recommend_configuration(num_floors: int, population: int, floor_height_m: fl
             target_criteria=criteria,
             message=(
                 f"No configuration within the search space (up to {MAX_LIFTS_SEARCHED} lifts, "
-                f"speeds {SPEED_OPTIONS_MS}, loads {LOAD_OPTIONS_KG}) meets the target "
+                f"speeds {SPEED_OPTIONS_MS}, loads {loads}) meets the target "
                 f"({criteria['min_hc_percent']}% handling capacity, {criteria['max_interval_s']}s "
                 f"interval) for this building. This may indicate the building needs to be split "
                 f"into multiple lift zones/groups rather than served by one group — a single-group "
