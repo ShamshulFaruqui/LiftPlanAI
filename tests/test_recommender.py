@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.spec_engine.recommender import (
-    recommend_configuration, configuration_cost_proxy, TARGET_CRITERIA,
+    recommend_configuration, configuration_cost_proxy, TARGET_CRITERIA, minimum_rated_load_kg,
 )
 
 
@@ -70,6 +70,23 @@ def test_cost_proxy_prefers_lower_speed_when_lift_count_ties():
     slower = configuration_cost_proxy(num_lifts=4, speed=1.00, load=1150)
     faster = configuration_cost_proxy(num_lifts=4, speed=1.75, load=1150)
     assert slower < faster
+
+
+def test_hotel_and_hospital_lifts_respect_published_minimum_load():
+    # Siikonen (2013): 1,275 kg is the accepted minimum for hotel guest lifts;
+    # 800-1,000 kg only below 10 floors. Test sheet ARC-550 (10 floors above
+    # the lobby, estimated 220 people) used to get 2 x 630 kg.
+    rec = recommend_configuration(num_floors=10, population=220, floor_height_m=3.25,
+                                   building_type="hotel")
+    assert rec.feasible and rec.rated_load_kg >= 1275
+    low = recommend_configuration(num_floors=5, population=100, floor_height_m=3.25,
+                                   building_type="hotel")
+    assert low.feasible and low.rated_load_kg >= 800
+    assert minimum_rated_load_kg("commercial", 20) == 0
+    # HTM 08-02: 1,000 kg is the smallest general hospital passenger lift.
+    hosp = recommend_configuration(num_floors=7, population=120, floor_height_m=4.4,
+                                    building_type="hospital")
+    assert hosp.feasible and hosp.rated_load_kg >= 1000
 
 
 if __name__ == "__main__":
