@@ -176,7 +176,7 @@ If training stops with an out-of-memory error in a dataloader worker, lower `--w
 **4. Run the tests**
 
 ```bash
-python -m pytest -q          # 321 tests
+python -m pytest -q          # 323 tests
 ```
 
 Key suites: `test_traffic_worked_example.py` (traffic engine vs. published example),
@@ -205,7 +205,7 @@ LiftPlan_AI/
 │   ├── detector/yolo_detector.py     YOLOv8 prepare / train / evaluate
 │   ├── evaluation/evaluate.py        evaluation harness (T1-T6, per subset)
 │   └── dashboard/                    Streamlit app (app.py) and pipeline orchestration (pipeline.py)
-├── tests/                            321 pytest tests
+├── tests/                            323 pytest tests
 ├── results/
 │   ├── test_full/                    test-split metrics and predictions (all sheets)
 │   ├── test_vector/                  same, vector sheets only
